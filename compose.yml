@@ -1,0 +1,67 @@
+services:
+  postgres:
+    image: 'postgres:latest'
+    environment:
+      - 'POSTGRES_DB=abadatabase'
+      - 'POSTGRES_PASSWORD=secret'
+      - 'POSTGRES_USER=myuser'
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  # Para acessar a documentação via swagger http://localhost:8080/swagger-ui/index.html#/
+  # Para acessar actuator da aplicação http://localhost:8080/actuator/prometheus
+  backend:
+    build:
+      context: https://github.com/witermendonca/FATEC_aba_project_backend.git#feature/aula-computacao-nuvem-2
+      dockerfile: Dockerfile
+    ports:
+      - "8080:8080"
+    depends_on:
+      - postgres
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/abadatabase
+      SPRING_DATASOURCE_USERNAME: myuser
+      SPRING_DATASOURCE_PASSWORD: secret
+      SPRING_JPA_HIBERNATE_DDL_AUTO: update
+      SPRING_JPA_PROPERTIES_HIBERNATE_DIALECT: org.hibernate.dialect.PostgreSQLDialect
+
+  # Para acessar frontend http://localhost:8081/
+  frontend:
+    build:
+      context: https://github.com/witermendonca/FATEC_aba_project.git#feature/aula-computacao-nuvem-2
+      dockerfile: Dockerfile
+    ports:
+      - "8081:80"
+    depends_on:
+      - backend
+
+  # Para acessar Prometheus http://localhost:9090/
+  # Exemplo de query  http_server_requests_seconds_count  número total de requisições que a api recebeu
+  # Exemplo de query sum by (status) (rate(http_server_requests_seconds_count[5m]))  soma de requisições HTTP por status
+  # Exemplo de query process_cpu_usage  uso de CPU
+  # Exemplo de query jvm_memory_used_bytes{area="heap"}  uso de memória da JVM
+  prometheus:
+    image: prom/prometheus:latest
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus/:/etc/prometheus/
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+
+  # Para acessar Grafana http://localhost:3000/login
+  grafana:
+    image: grafana/grafana:latest
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+    volumes:
+      - grafana-storage:/var/lib/grafana
+
+volumes:
+  grafana-storage:
+  postgres_data:
